@@ -1,0 +1,54 @@
+services:
+  db:
+    image: postgres:16-bullseye
+    restart: on-failure
+    networks:
+      - booster
+    environment:
+      POSTGRES_DB: bot
+      POSTGRES_USER: bot
+      POSTGRES_PASSWORD: bot
+    ports:
+      - "5432"
+    healthcheck:
+      test: pg_isready -U bot -d bot
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+  migrate:
+    image: migrate/migrate
+    networks:
+      - booster
+    volumes:
+      - ./migrations:/migrations
+    command:
+      - "-path"
+      - "/migrations"
+      - "-database"
+      - "postgres://bot:bot@db:5432/bot?sslmode=disable"
+      - "up"
+    links:
+      - db
+    depends_on:
+      - db
+
+  bot:
+    build:
+      context: .
+    env_file: .env
+    networks:
+      - booster
+    links:
+      - db
+    depends_on:
+      - db
+
+networks:
+  booster:
+
+volumes:
+  db-data:
