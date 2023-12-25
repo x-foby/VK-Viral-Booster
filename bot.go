@@ -138,7 +138,7 @@ func (b *Bot) allowPost(ctx context.Context, userID int, posts ...PostLink) (boo
 	}
 
 	threshold := postsCount * 0.8
-	var count int
+	var count float32
 
 	for _, p := range posts {
 		liked, err := b.vk.PostLiked(p, userID)
@@ -149,7 +149,7 @@ func (b *Bot) allowPost(ctx context.Context, userID int, posts ...PostLink) (boo
 			count++
 		}
 
-		if float32(count)/postsCount >= threshold {
+		if count >= threshold {
 			return true, nil
 		}
 	}

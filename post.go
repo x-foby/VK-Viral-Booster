@@ -78,7 +78,7 @@ func (r *PostRepository) GetLast(ctx context.Context, peerID int) ([]PostLink, e
 		From("post").
 		Where("created_at > current_timestamp - '7 days'::interval").
 		Where("peer_id = ?", peerID).
-		OrderBy("created_at").
+		OrderBy("created_at desc").
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 	if err != nil {
