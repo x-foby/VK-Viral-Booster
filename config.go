@@ -3,15 +3,13 @@ package main
 import (
 	"errors"
 	"strings"
-	"time"
 )
 
 type config struct {
-	APIKey             string        `envconfig:"API_KEY"`
-	Token              string        `envconfig:"VK_TOKEN"`
-	GroupID            int           `envconfig:"GROUP_ID"`
-	DataBase           string        `envconfig:"DATABASE"`
-	UserUpdateInterval time.Duration `envconfig:"USER_UPDATE_INTERVAL"`
+	APIKey   string `envconfig:"API_KEY"`
+	Token    string `envconfig:"VK_TOKEN"`
+	GroupID  int    `envconfig:"GROUP_ID"`
+	DataBase string `envconfig:"DATABASE"`
 }
 
 func (c *config) validate() error {
@@ -31,10 +29,6 @@ func (c *config) validate() error {
 
 	if c.DataBase = strings.TrimSpace(c.DataBase); c.DataBase == "" {
 		return errors.New("DATABASE required")
-	}
-
-	if c.UserUpdateInterval <= 0 {
-		return errors.New("USER_UPDATE_INTERVAL required")
 	}
 
 	return nil
