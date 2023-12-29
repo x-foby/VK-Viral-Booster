@@ -8,15 +8,18 @@ import (
 
 	"github.com/SevereCloud/vksdk/v2/api"
 	"github.com/SevereCloud/vksdk/v2/api/params"
+	"go.uber.org/ratelimit"
 )
 
 type VKAdapter struct {
 	vk *api.VK
+	rl ratelimit.Limiter
 }
 
 func NewVKAdapter(vk *api.VK) *VKAdapter {
 	return &VKAdapter{
 		vk: vk,
+		rl: ratelimit.New(20),
 	}
 }
 
@@ -26,6 +29,8 @@ func (a *VKAdapter) PostLiked(post PostLink, userID int) (bool, error) {
 	ownerID, postID := post.IDs()
 
 	for i := 0; ; i++ {
+		a.rl.Take()
+
 		resp, err := a.vk.LikesGetList(api.Params{
 			"type":     "post",
 			"filter":   "likes",
@@ -56,6 +61,8 @@ var (
 )
 
 func (a *VKAdapter) PostExists(post PostLink) (bool, error) {
+	a.rl.Take()
+
 	resp, err := a.vk.WallGetByID(api.Params{
 		"posts": post,
 	})
@@ -75,6 +82,8 @@ func (a *VKAdapter) PostExists(post PostLink) (bool, error) {
 }
 
 func (a *VKAdapter) UserNickname(id int) (string, error) {
+	a.rl.Take()
+
 	resp, err := a.vk.UsersGet(
 		params.NewUsersGetBuilder().
 			UserIDs([]string{strconv.Itoa(id)}).
