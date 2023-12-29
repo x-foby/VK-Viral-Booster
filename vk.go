@@ -19,7 +19,7 @@ type VKAdapter struct {
 func NewVKAdapter(vk *api.VK) *VKAdapter {
 	return &VKAdapter{
 		vk: vk,
-		rl: ratelimit.New(20),
+		rl: ratelimit.New(5),
 	}
 }
 
