@@ -9,11 +9,9 @@ import (
 	"github.com/SevereCloud/vksdk/v2/events"
 )
 
-// var ErrPostCanOnlyContainOneLink = errors.New("a post can only contain one link")
-
 type VK interface {
 	PostExists(link PostLink) (bool, error)
-	PostLiked(link PostLink, userID int) (bool, error)
+	UnlikedPosts(posts []PostLink, userID int) ([]PostLink, error)
 	UserNickname(id int) (string, error)
 }
 
@@ -70,6 +68,18 @@ func (b *Bot) MessageNew(ctx context.Context, e events.MessageNewObject) {
 	}
 }
 
+type postLinks []PostLink
+
+func (p postLinks) String() string {
+	links := make([]string, len(p))
+
+	for i := range p {
+		links[i] = p[i].Link()
+	}
+
+	return strings.Join(links, ", ")
+}
+
 func (b *Bot) addPost(ctx context.Context, e events.MessageNewObject) error {
 	link, err := NewPostLink(e.Message.Text)
 	if err != nil {
@@ -90,16 +100,20 @@ func (b *Bot) addPost(ctx context.Context, e events.MessageNewObject) error {
 		return fmt.Errorf("failed to get conversation info: %w", err)
 	}
 
+	var unliked []PostLink
+
 	if !allow {
 		posts, err := b.posts.GetLast(ctx, e.Message.PeerID)
 		if err != nil {
 			return fmt.Errorf("failed to get last posts: %w", err)
 		}
 
-		allow, err = b.allowPost(ctx, e.Message.FromID, posts...)
+		unliked, err = b.unlikedPosts(ctx, e.Message.FromID, posts...)
 		if err != nil {
-			return fmt.Errorf("failed to get post statistics: %w", err)
+			return fmt.Errorf("failed to get posts statistics: %w", err)
 		}
+
+		allow = len(unliked) == 0
 	}
 
 	if !allow {
@@ -112,7 +126,10 @@ func (b *Bot) addPost(ctx context.Context, e events.MessageNewObject) error {
 			return fmt.Errorf("failed to get nickname for user %d: %w", e.Message.FromID, err)
 		}
 
-		if err := b.chatter.Send(fmt.Sprintf("Ссылка на пост удалена, так как @%s не лайкает чужие посты", nickname), e.Message.PeerID); err != nil {
+		const message = `Ссылка на пост удалена, так как @%s не лайкает чужие посты.
+Посты, которые необходимо лайкнуть: %s`
+
+		if err := b.chatter.Send(fmt.Sprintf(message, nickname, postLinks(unliked)), e.Message.PeerID); err != nil {
 			return fmt.Errorf("failed to send message: %w", err)
 		}
 
@@ -130,31 +147,27 @@ func (b *Bot) fromAdmin(ctx context.Context, userID int, posts ...PostLink) (boo
 	return false, nil
 }
 
-func (b *Bot) allowPost(ctx context.Context, userID int, posts ...PostLink) (bool, error) {
+func (b *Bot) unlikedPosts(ctx context.Context, userID int, posts ...PostLink) ([]PostLink, error) {
 	postsCount := float32(len(posts))
 
 	if postsCount == 0 {
-		return true, nil
+		return nil, nil
 	}
 
-	threshold := postsCount * 0.8
-	var count float32
-
-	for _, p := range posts {
-		liked, err := b.vk.PostLiked(p, userID)
-		if err != nil {
-			return false, err
-		}
-		if liked {
-			count++
-		}
-
-		if count >= threshold {
-			return true, nil
-		}
+	unliked, err := b.vk.UnlikedPosts(posts, userID)
+	if err != nil {
+		return nil, err
 	}
 
-	return false, nil
+	if len(unliked) == 0 {
+		return nil, nil
+	}
+
+	if postsCount-float32(len(unliked)) >= postsCount*0.8 {
+		return nil, nil
+	}
+
+	return unliked, nil
 }
 
 func command(msg string) string {

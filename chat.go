@@ -16,7 +16,7 @@ type Chat struct {
 func NewChat(vk *api.VK) *Chat {
 	return &Chat{
 		vk: vk,
-		rl: ratelimit.New(20),
+		rl: ratelimit.New(10),
 	}
 }
 

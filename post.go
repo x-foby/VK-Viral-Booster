@@ -43,6 +43,10 @@ func (p PostLink) IDs() (string, string) {
 	return ids[0], ids[1]
 }
 
+func (p PostLink) Link() string {
+	return fmt.Sprintf("https://vk.com/wall%s", p)
+}
+
 type PostRepository struct {
 	conn *pgxpool.Pool
 }
