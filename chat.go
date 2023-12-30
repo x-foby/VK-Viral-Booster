@@ -56,14 +56,15 @@ func (c *Chat) ReplyTo(text string, messageID, peerID int) error {
 func (c *Chat) send(params api.Params) error {
 	c.rl.Take()
 
-	_, err := c.vk.MessagesSend(params)
+	_, err := requestWithRetries(c.vk.MessagesSend, params)
 	return err
 }
 
 func (c *Chat) Delete(messageID, peerID int) error {
 	c.rl.Take()
 
-	_, err := c.vk.MessagesDelete(
+	_, err := requestWithRetries(
+		c.vk.MessagesDelete,
 		params.NewMessagesDeleteBuilder().
 			ConversationMessageIDs([]int{messageID}).
 			DeleteForAll(true).
@@ -76,7 +77,8 @@ func (c *Chat) Delete(messageID, peerID int) error {
 func (c *Chat) IsAdmin(peerID, userID int) (bool, error) {
 	c.rl.Take()
 
-	resp, err := c.vk.MessagesGetConversationMembers(
+	resp, err := requestWithRetries(
+		c.vk.MessagesGetConversationMembers,
 		params.
 			NewMessagesGetConversationMembersBuilder().
 			PeerID(peerID).

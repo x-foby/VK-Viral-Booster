@@ -145,7 +145,7 @@ func (a *VKAdapter) UnlikedPosts(posts []PostLink, userID int) ([]PostLink, erro
 		a.rl.Take()
 
 		var items []vkPost
-		if err := a.vk.Execute(buf.String(), &items); err != nil {
+		if err := executeWithRetries(a.vk, buf.String(), &items); err != nil {
 			return nil, fmt.Errorf("failed to fetch unliked posts: %w", err)
 		}
 
@@ -167,7 +167,7 @@ var (
 func (a *VKAdapter) PostExists(post PostLink) (bool, error) {
 	a.rl.Take()
 
-	resp, err := a.vk.WallGetByID(api.Params{
+	resp, err := requestWithRetries(a.vk.WallGetByID, api.Params{
 		"posts": post,
 	})
 	if err != nil {
@@ -188,11 +188,13 @@ func (a *VKAdapter) PostExists(post PostLink) (bool, error) {
 func (a *VKAdapter) UserNickname(id int) (string, error) {
 	a.rl.Take()
 
-	resp, err := a.vk.UsersGet(
+	resp, err := requestWithRetries(
+		a.vk.UsersGet,
 		params.NewUsersGetBuilder().
 			UserIDs([]string{strconv.Itoa(id)}).
 			Fields([]string{"screen_name"}).
-			Params)
+			Params,
+	)
 	if err != nil {
 		return "", err
 	}
