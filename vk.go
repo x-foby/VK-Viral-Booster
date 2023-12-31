@@ -36,38 +36,48 @@ const vkScript = `var posts = [
 var userId = {{ .UserID }};
 
 var unliked = [];
+var unchecked = [];
+var totalRequestCount = 0;
 var i = 0;
 
 while (i < posts.length) {
-    var j = 0;
+    if (totalRequestCount < 25) {
+        var j = 0;
+        var inProgress = true;
 
-    var inProgress = true;
+        while (inProgress && totalRequestCount < 25) {
+            var likes = API.likes.getList({
+                type: "post",
+                owner_id: posts[i].owner_id,
+                item_id: posts[i].item_id,
+                count: 1000,
+                offset: j * 1000,
+            });
 
-    while (inProgress) {
-        var likes = API.likes.getList({
-            type: "post",
-            owner_id: posts[i].owner_id,
-            item_id: posts[i].item_id,
-            count: 1000,
-            offset: j*1000,
-        });
+            totalRequestCount = totalRequestCount + 1;
 
-        if (likes.items.indexOf(userId) != -1) {
-            inProgress = false;
-        } else {
-            if (j*1000+likes.items.length >= likes.count) {
+            if (likes.items.indexOf(userId) != -1) {
                 inProgress = false;
-                unliked.push(posts[i]);
             } else {
-                j = j+1;
+                if (j * 1000 + likes.items.length >= likes.count) {
+                    inProgress = false;
+                    unliked.push(posts[i]);
+                } else {
+                    j = j + 1;
+                }
             }
         }
-    };
+    } else {
+        unchecked.push(posts[i]);
+    }
 
-    i = i+1;
-};
+    i = i + 1;
+}
 
-return unliked;`
+return {
+    unliked: unliked,
+    unchecked: unchecked,
+};`
 
 type vkPost struct {
 	OwnerID string
@@ -102,6 +112,22 @@ func (p vkPosts) postLinks() []PostLink {
 	return l
 }
 
+func (p *vkPosts) append(posts ...vkPost) {
+	idx := make(map[string]struct{})
+	for _, post := range *p {
+		idx[post.OwnerID+post.PostID] = struct{}{}
+	}
+
+	for _, post := range posts {
+		if _, ok := idx[post.OwnerID+post.PostID]; ok {
+			continue
+		}
+
+		*p = append(*p, post)
+		idx[post.OwnerID+post.PostID] = struct{}{}
+	}
+}
+
 func (a *VKAdapter) UnlikedPosts(posts []PostLink, userID int) ([]PostLink, error) {
 	lenght := len(posts)
 
@@ -114,29 +140,25 @@ func (a *VKAdapter) UnlikedPosts(posts []PostLink, userID int) ([]PostLink, erro
 		return nil, err
 	}
 
-	var unliked []PostLink
-
-	const limit = 25
-
-	steps := lenght / limit
-	if lenght%limit != 0 {
-		steps++
+	type response struct {
+		Unliked   vkPosts `json:"unliked"`
+		Unchecked vkPosts `json:"unchecked"`
 	}
 
-	for i := 0; i < steps; i++ {
+	var processed response
+	for _, p := range posts {
+		ownerID, postID := p.IDs()
+		processed.Unchecked = append(processed.Unchecked, vkPost{
+			OwnerID: ownerID,
+			PostID:  postID,
+		})
+	}
+
+	for {
 		var buf bytes.Buffer
 
-		convertedPosts := make([]vkPost, len(posts))
-		for i, p := range posts {
-			ownerID, postID := p.IDs()
-			convertedPosts[i] = vkPost{
-				OwnerID: ownerID,
-				PostID:  postID,
-			}
-		}
-
 		if err := template.Must(tmplt.Clone()).Execute(&buf, map[string]interface{}{
-			"Posts":  convertedPosts,
+			"Posts":  processed.Unchecked,
 			"UserID": userID,
 		}); err != nil {
 			return nil, err
@@ -144,17 +166,20 @@ func (a *VKAdapter) UnlikedPosts(posts []PostLink, userID int) ([]PostLink, erro
 
 		a.rl.Take()
 
-		var items []vkPost
-		if err := executeWithRetries(a.vk, buf.String(), &items); err != nil {
+		var resp response
+		if err := executeWithRetries(a.vk, buf.String(), &resp); err != nil {
 			return nil, fmt.Errorf("failed to fetch unliked posts: %w", err)
 		}
 
-		if len(items) != 0 {
-			unliked = append(unliked, vkPosts(items).postLinks()...)
+		processed.Unliked.append(resp.Unliked...)
+		processed.Unchecked = resp.Unchecked
+
+		if len(processed.Unchecked) == 0 {
+			break
 		}
 	}
 
-	return unliked, nil
+	return processed.Unliked.postLinks(), nil
 }
 
 var (
