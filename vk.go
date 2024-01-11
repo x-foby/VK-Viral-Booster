@@ -45,25 +45,33 @@ while (i < posts.length) {
         var j = 0;
         var inProgress = true;
 
-        while (inProgress && totalRequestCount < 25) {
-            var likes = API.likes.getList({
-                type: "post",
-                owner_id: posts[i].owner_id,
-                item_id: posts[i].item_id,
-                count: 1000,
-                offset: j * 1000,
-            });
+        var post = API.wall.getById({ posts: posts[i].owner_id + "_" + posts[i].item_id });
 
-            totalRequestCount = totalRequestCount + 1;
+        if (!!post.items && post.items.length == 1 && !post.items[0].is_deleted) {
+            while (inProgress && totalRequestCount < 25) {
+                var likes = API.likes.getList({
+                    type: "post",
+                    owner_id: posts[i].owner_id,
+                    item_id: posts[i].item_id,
+                    count: 1000,
+                    offset: j * 1000,
+                });
 
-            if (likes.items.indexOf(userId) != -1) {
-                inProgress = false;
-            } else {
-                if (j * 1000 + likes.items.length >= likes.count) {
+                if (!likes.likes) {
                     inProgress = false;
-                    unliked.push(posts[i]);
                 } else {
-                    j = j + 1;
+                    totalRequestCount = totalRequestCount + 1;
+
+                    if (likes.items.indexOf(userId) != -1) {
+                        inProgress = false;
+                    } else {
+                        if (j * 1000 + likes.items.length >= likes.count) {
+                            inProgress = false;
+                            unliked.push(posts[i]);
+                        } else {
+                            j = j + 1;
+                        }
+                    }
                 }
             }
         }
