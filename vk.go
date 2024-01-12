@@ -47,6 +47,8 @@ while (i < posts.length) {
 
         var post = API.wall.getById({ posts: posts[i].owner_id + "_" + posts[i].item_id });
 
+        totalRequestCount = totalRequestCount + 1;
+
         if (!!post.items && post.items.length == 1 && !post.items[0].is_deleted) {
             while (inProgress && totalRequestCount < 25) {
                 var likes = API.likes.getList({
