@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/SevereCloud/vksdk/v2/events"
 )
@@ -19,12 +20,12 @@ type Chatter interface {
 	Send(text string, peerID int) error
 	ReplyTo(text string, messageID, peerID int) error
 	Delete(messageID, peerID int) error
-	IsAdmin(peerID, userID int) (bool, error)
+	MemberInfo(peerID, userID int) (chatMember, error)
 }
 
 type postRepo interface {
 	Create(ctx context.Context, link PostLink, peerID int) error
-	GetLast(ctx context.Context, peerID int) ([]PostLink, error)
+	GetLast(ctx context.Context, peerID int, from time.Time) ([]PostLink, error)
 }
 
 type Bot struct {
@@ -95,15 +96,17 @@ func (b *Bot) addPost(ctx context.Context, e events.MessageNewObject) error {
 		return fmt.Errorf("failed to fetch post %s: %w", link, err)
 	}
 
-	allow, err := b.chatter.IsAdmin(e.Message.PeerID, e.Message.FromID)
+	member, err := b.chatter.MemberInfo(e.Message.PeerID, e.Message.FromID)
 	if err != nil {
 		return fmt.Errorf("failed to get conversation info: %w", err)
 	}
 
+	allow := member.IsAdmin
+
 	var unliked []PostLink
 
 	if !allow {
-		posts, err := b.posts.GetLast(ctx, e.Message.PeerID)
+		posts, err := b.posts.GetLast(ctx, e.Message.PeerID, member.JoinedAt)
 		if err != nil {
 			return fmt.Errorf("failed to get last posts: %w", err)
 		}

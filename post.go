@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -76,11 +77,11 @@ func (r *PostRepository) Create(ctx context.Context, p PostLink, peerID int) err
 	return nil
 }
 
-func (r *PostRepository) GetLast(ctx context.Context, peerID int) ([]PostLink, error) {
+func (r *PostRepository) GetLast(ctx context.Context, peerID int, from time.Time) ([]PostLink, error) {
 	sql, args, err := squirrel.
 		Select("link").
 		From("post").
-		Where("created_at > current_timestamp - '7 days'::interval").
+		Where("created_at > greatest(current_timestamp - '7 days'::interval, ?)", from).
 		Where("peer_id = ?", peerID).
 		OrderBy("created_at desc").
 		PlaceholderFormat(squirrel.Dollar).

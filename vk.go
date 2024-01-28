@@ -59,7 +59,7 @@ while (i < posts.length) {
                     offset: j * 1000,
                 });
 
-                if (!likes.likes) {
+                if (!likes.items) {
                     inProgress = false;
                 } else {
                     totalRequestCount = totalRequestCount + 1;
@@ -176,10 +176,17 @@ func (a *VKAdapter) UnlikedPosts(posts []PostLink, userID int) ([]PostLink, erro
 
 		a.rl.Take()
 
+		// Костыль, поскольку по какой-то причине execute перестал работать в версии библиотеки
+		// Потенциально тут может быть гонка данных.
+		oldV := a.vk.Version
+		a.vk.Version = "5.199"
+
 		var resp response
 		if err := executeWithRetries(a.vk, buf.String(), &resp); err != nil {
+			a.vk.Version = oldV
 			return nil, fmt.Errorf("failed to fetch unliked posts: %w", err)
 		}
+		a.vk.Version = oldV
 
 		processed.Unliked.append(resp.Unliked...)
 		processed.Unchecked = resp.Unchecked

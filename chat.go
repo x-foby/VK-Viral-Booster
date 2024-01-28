@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/SevereCloud/vksdk/v2/api"
 	"github.com/SevereCloud/vksdk/v2/api/params"
@@ -74,7 +75,12 @@ func (c *Chat) Delete(messageID, peerID int) error {
 	return err
 }
 
-func (c *Chat) IsAdmin(peerID, userID int) (bool, error) {
+type chatMember struct {
+	JoinedAt time.Time
+	IsAdmin  bool
+}
+
+func (c *Chat) MemberInfo(peerID, userID int) (chatMember, error) {
 	c.rl.Take()
 
 	resp, err := requestWithRetries(
@@ -90,8 +96,11 @@ func (c *Chat) IsAdmin(peerID, userID int) (bool, error) {
 			continue
 		}
 
-		return bool(member.IsAdmin), nil
+		return chatMember{
+			JoinedAt: time.Unix(int64(member.JoinDate), 0),
+			IsAdmin:  bool(member.IsAdmin),
+		}, nil
 	}
 
-	return false, err
+	return chatMember{}, err
 }
